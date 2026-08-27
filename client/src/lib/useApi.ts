@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { apiGet, apiPost, apiPut, apiDelete, ApiRequestOptions } from './api';
+import { apiGet, apiPost, apiPut, apiDelete, type ApiRequestOptions } from './api';
 
 export const useApi = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
