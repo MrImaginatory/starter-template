@@ -28,6 +28,11 @@ const envSchema: EnvConfig = {
     validation: (value) => ['error', 'warn', 'info', 'debug'].includes(value),
     errorMessage: 'LOG_LEVEL must be error, warn, info, or debug',
   },
+  DB_PROVIDER: {
+    required: true,
+    validation: (value) => ['postgresql', 'mysql'].includes(value),
+    errorMessage: 'DB_PROVIDER must be postgresql or mysql',
+  },
   DATABASE_URL: {
     required: true,
     errorMessage: 'DATABASE_URL is required',

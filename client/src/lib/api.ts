@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig, CancelTokenSource } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
@@ -25,6 +25,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
@@ -32,5 +35,29 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export interface ApiRequestOptions extends AxiosRequestConfig {
+  signal?: AbortSignal;
+}
+
+export const apiGet = async <T>(url: string, options?: ApiRequestOptions): Promise<T> => {
+  const response = await apiClient.get<T>(url, options);
+  return response.data;
+};
+
+export const apiPost = async <T>(url: string, data?: unknown, options?: ApiRequestOptions): Promise<T> => {
+  const response = await apiClient.post<T>(url, data, options);
+  return response.data;
+};
+
+export const apiPut = async <T>(url: string, data?: unknown, options?: ApiRequestOptions): Promise<T> => {
+  const response = await apiClient.put<T>(url, data, options);
+  return response.data;
+};
+
+export const apiDelete = async <T>(url: string, options?: ApiRequestOptions): Promise<T> => {
+  const response = await apiClient.delete<T>(url, options);
+  return response.data;
+};
 
 export default apiClient;
