@@ -1,5 +1,4 @@
-import axios from 'axios';
-import type { AxiosRequestConfig } from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 // import type {CancelTokenSource } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
