@@ -41,6 +41,11 @@ const envSchema: EnvConfig = {
     required: true,
     errorMessage: 'JWT_SECRET is required',
   },
+  JWT_LIFESPAN: {
+    required: false,
+    default: '1d',
+    errorMessage: 'JWT_LIFESPAN must be a valid jsonwebtoken expiresIn value (e.g. "1d", "7d", "24h")',
+  },
   REDIS_URL: {
     required: false,
     default: 'redis://localhost:6379',
