@@ -26,5 +26,10 @@ export const validateEnv = (): void => {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
+  if (!process.env.LOGS_PASSWORD) {
+    process.env.LOGS_PASSWORD = 'admin123';
+    logger.warn('Using default LOGS_PASSWORD. Set LOGS_PASSWORD in .env for production.');
+  }
+
   logger.info('Gateway environment validated');
 };

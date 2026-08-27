@@ -45,6 +45,10 @@ const envSchema: EnvConfig = {
     required: false,
     default: 'redis://localhost:6379',
   },
+  LOGS_PASSWORD: {
+    required: false,
+    default: 'admin123',
+  },
 };
 
 export const validateEnv = (): void => {

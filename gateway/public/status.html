@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Status</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; border: 1px solid #334155; }
+    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .status { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.green { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .dot.red { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .dot.yellow { background: #eab308; box-shadow: 0 0 8px #eab308; }
+    .dot.gray { background: #6b7280; }
+    .label { font-weight: 500; }
+    .value { color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem; }
+    .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155; }
+    .metric:last-child { border-bottom: none; }
+    .metric-label { color: #94a3b8; }
+    .metric-value { font-weight: 500; font-family: monospace; }
+    .refresh { background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; margin-bottom: 1.5rem; }
+    .refresh:hover { background: #475569; }
+    .error { color: #ef4444; padding: 1rem; background: #1e293b; border-radius: 8px; border: 1px solid #ef4444; }
+    .loading { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>System Status</h1>
+  <button class="refresh" onclick="loadStatus()">Refresh</button>
+  <div id="content" class="loading">Loading...</div>
+
+  <script>
+    const GATEWAY = window.location.origin;
+
+    async function loadStatus() {
+      const el = document.getElementById('content');
+      el.innerHTML = '<div class="loading">Loading status...</div>';
+
+      try {
+        const [gwRes, beRes] = await Promise.allSettled([
+          fetch(`${GATEWAY}/gateway/status`),
+          fetch(`${GATEWAY}/backend/status`)
+        ]);
+
+        let html = '<div class="grid">';
+
+        // Gateway
+        if (gwRes.status === 'fulfilled' && gwRes.value.ok) {
+          const gw = await gwRes.value.json();
+          html += renderCard('Gateway', gw.data);
+        } else {
+          html += renderErrorCard('Gateway', 'Unable to connect');
+        }
+
+        // Backend
+        if (beRes.status === 'fulfilled' && beRes.value.ok) {
+          const be = await beRes.value.json();
+          html += renderCard('Backend', be.data);
+        } else if (beRes.status === 'fulfilled') {
+          const errText = await beRes.value.text().catch(() => 'Unknown error');
+          html += renderErrorCard('Backend', `Error: ${beRes.value.status} - ${errText}`);
+        } else {
+          html += renderErrorCard('Backend', `Unable to connect: ${beRes.reason?.message || 'Network error'}`);
+        }
+
+        html += '</div>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderCard(title, data) {
+      const statusColor = data.status === 'running' ? 'green' : 'red';
+      const dbStatus = data.database ? data.database.status : 'N/A';
+      const dbColor = dbStatus === 'connected' ? 'green' : 'red';
+
+      return `
+        <div class="card">
+          <h2>${title}</h2>
+          <div class="status">
+            <span class="dot ${statusColor}"></span>
+            <span class="label">${data.status}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Environment</span>
+            <span class="metric-value">${data.env}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Uptime</span>
+            <span class="metric-value">${formatUptime(data.uptime)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Memory (RSS)</span>
+            <span class="metric-value">${formatBytes(data.memory.rss)}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Memory (Heap)</span>
+            <span class="metric-value">${formatBytes(data.memory.heapUsed)} / ${formatBytes(data.memory.heapTotal)}</span>
+          </div>
+          ${data.database ? `
+          <div class="metric">
+            <span class="metric-label">Database</span>
+            <span class="metric-value"><span class="dot ${dbColor}" style="display:inline-block;width:8px;height:8px;margin-right:4px"></span>${data.database.provider} — ${dbStatus}</span>
+          </div>
+          ` : ''}
+          ${data.backend ? `
+          <div class="metric">
+            <span class="metric-label">Backend</span>
+            <span class="metric-value"><span class="dot ${data.backend.status === 'connected' ? 'green' : 'red'}" style="display:inline-block;width:8px;height:8px;margin-right:4px"></span>${data.backend.status}</span>
+          </div>
+          ` : ''}
+          <div class="metric">
+            <span class="metric-label">Timestamp</span>
+            <span class="metric-value">${new Date(data.timestamp).toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderErrorCard(title, msg) {
+      return `
+        <div class="card">
+          <h2>${title}</h2>
+          <div class="status">
+            <span class="dot red"></span>
+            <span class="label">Offline</span>
+          </div>
+          <div class="value">${msg}</div>
+        </div>
+      `;
+    }
+
+    function formatUptime(seconds) {
+      const d = Math.floor(seconds / 86400);
+      const h = Math.floor((seconds % 86400) / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      return `${d}d ${h}h ${m}m ${s}s`;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Logs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0f172a; color: #e2e8f0; padding: 1.5rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 1rem; color: #38bdf8; font-family: sans-serif; }
+    .login-box { max-width: 400px; margin: 4rem auto; background: #1e293b; padding: 2rem; border-radius: 12px; border: 1px solid #334155; }
+    .login-box h2 { margin-bottom: 1rem; font-family: sans-serif; }
+    .login-box input { width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.875rem; margin-bottom: 1rem; }
+    .login-box button { width: 100%; padding: 0.75rem; background: #3b82f6; border: none; border-radius: 6px; color: white; font-weight: 500; cursor: pointer; }
+    .login-box button:hover { background: #2563eb; }
+    .error-msg { color: #ef4444; font-size: 0.875rem; margin-bottom: 1rem; display: none; }
+    .controls { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+    .controls select, .controls input, .controls button { padding: 0.5rem 0.75rem; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.875rem; }
+    .controls button { background: #334155; cursor: pointer; border: 1px solid #475569; }
+    .controls button:hover { background: #475569; }
+    .controls button.active { background: #3b82f6; border-color: #3b82f6; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1rem; }
+    .tab { padding: 0.5rem 1rem; background: #1e293b; border: 1px solid #334155; cursor: pointer; font-size: 0.875rem; }
+    .tab:first-child { border-radius: 6px 0 0 6px; }
+    .tab:last-child { border-radius: 0 6px 6px 0; }
+    .tab.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+    .log-container { background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+    .log-header { padding: 0.75rem 1rem; background: #334155; font-size: 0.75rem; color: #94a3b8; display: flex; justify-content: space-between; }
+    .log-body { max-height: 70vh; overflow-y: auto; padding: 0.5rem 0; }
+    .log-entry { padding: 0.5rem 1rem; border-bottom: 1px solid #1e293b; font-size: 0.8rem; line-height: 1.6; display: flex; gap: 1rem; }
+    .log-entry:hover { background: #334155; }
+    .log-time { color: #64748b; white-space: nowrap; min-width: 85px; }
+    .log-level { font-weight: 600; min-width: 50px; text-transform: uppercase; }
+    .log-level.info { color: #38bdf8; }
+    .log-level.warn { color: #eab308; }
+    .log-level.error { color: #ef4444; }
+    .log-level.debug { color: #a78bfa; }
+    .log-level.http { color: #34d399; }
+    .log-msg { flex: 1; word-break: break-word; }
+    .log-meta { color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; }
+    .empty { padding: 2rem; text-align: center; color: #64748b; }
+    .hidden { display: none; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-box">
+    <h2>Logs Access</h2>
+    <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem;">Enter your admin password to view logs.</p>
+    <div id="errorMsg" class="error-msg">Invalid password</div>
+    <input type="password" id="passwordInput" placeholder="Password" onkeypress="if(event.key==='Enter') authenticate()">
+    <button onclick="authenticate()">Access Logs</button>
+  </div>
+
+  <div id="logsScreen" class="hidden">
+    <h1>System Logs</h1>
+    <div class="tabs">
+      <div class="tab active" data-service="gateway" onclick="switchService('gateway')">Gateway</div>
+      <div class="tab" data-service="backend" onclick="switchService('backend')">Backend</div>
+    </div>
+    <div class="controls">
+      <select id="logType" onchange="loadLogs()">
+        <option value="combined">All Logs</option>
+        <option value="error">Errors Only</option>
+      </select>
+      <select id="logLines" onchange="loadLogs()">
+        <option value="50">50 lines</option>
+        <option value="100" selected>100 lines</option>
+        <option value="200">200 lines</option>
+        <option value="500">500 lines</option>
+      </select>
+      <button onclick="loadLogs()">Refresh</button>
+      <button onclick="downloadLogs()">Download Full Log</button>
+      <span id="logCount" style="color: #64748b; font-size: 0.8rem;"></span>
+    </div>
+    <div class="log-container">
+      <div class="log-header">
+        <span id="logTitle">gateway — combined</span>
+        <span id="logTimestamp"></span>
+      </div>
+      <div id="logBody" class="log-body">
+        <div class="empty">Loading logs...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let authToken = '';
+    let currentService = 'gateway';
+    const GATEWAY = window.location.origin;
+
+    function authenticate() {
+      const pw = document.getElementById('passwordInput').value;
+      if (!pw) return;
+
+      // Simple token-based auth - password is compared server-side
+      authToken = btoa(pw);
+      sessionStorage.setItem('log_token', authToken);
+
+      // Validate by making a test request
+      fetch(`${GATEWAY}/gateway/logs?lines=1&type=combined`, {
+        headers: { 'Authorization': `Basic ${authToken}` }
+      }).then(res => {
+        if (res.ok) {
+          document.getElementById('loginScreen').classList.add('hidden');
+          document.getElementById('logsScreen').classList.remove('hidden');
+          loadLogs();
+        } else {
+          document.getElementById('errorMsg').style.display = 'block';
+          document.getElementById('errorMsg').textContent = 'Invalid password';
+        }
+      }).catch(() => {
+        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('errorMsg').textContent = 'Connection error';
+      });
+    }
+
+    function switchService(service) {
+      currentService = service;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`[data-service="${service}"]`).classList.add('active');
+      loadLogs();
+    }
+
+    async function loadLogs() {
+      const lines = document.getElementById('logLines').value;
+      const type = document.getElementById('logType').value;
+      const el = document.getElementById('logBody');
+      el.innerHTML = '<div class="empty">Loading...</div>';
+
+      const base = currentService === 'gateway' ? '/gateway/logs' : '/backend/logs';
+      const url = `${GATEWAY}${base}?lines=${lines}&type=${type}`;
+
+      try {
+        const res = await fetch(url, {
+          headers: { 'Authorization': `Basic ${authToken}` }
+        });
+
+        if (!res.ok) {
+          el.innerHTML = '<div class="empty">Failed to load logs</div>';
+          return;
+        }
+
+        const data = await res.json();
+        const logs = data.data?.logs || [];
+
+        document.getElementById('logTitle').textContent = `${currentService} — ${type}`;
+        document.getElementById('logCount').textContent = `${logs.length} entries`;
+        document.getElementById('logTimestamp').textContent = new Date().toLocaleTimeString();
+
+        if (logs.length === 0) {
+          el.innerHTML = '<div class="empty">No logs found</div>';
+          return;
+        }
+
+        el.innerHTML = logs.map(line => renderLogLine(line)).join('');
+      } catch (err) {
+        el.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderLogLine(line) {
+      try {
+        const parsed = JSON.parse(line);
+        const time = parsed.timestamp ? new Date(parsed.timestamp).toLocaleTimeString() : '';
+        const level = parsed.level || 'info';
+        const msg = parsed.message || line;
+        const module = parsed.module || '';
+        const meta = Object.entries(parsed)
+          .filter(([k]) => !['timestamp', 'level', 'message', 'module'].includes(k))
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join(' | ');
+
+        return `
+          <div class="log-entry">
+            <span class="log-time">${time}</span>
+            <span class="log-level ${level}">${level}</span>
+            <div class="log-msg">
+              ${module ? `<span style="color:#a78bfa">[${module}]</span> ` : ''}${escapeHtml(msg)}
+              ${meta ? `<div class="log-meta">${escapeHtml(meta)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      } catch {
+        return `<div class="log-entry"><div class="log-msg">${escapeHtml(line)}</div></div>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function downloadLogs() {
+      const type = document.getElementById('logType').value;
+      const base = currentService === 'gateway' ? '/gateway/logs/download' : '/backend/logs/download';
+      const url = `${GATEWAY}${base}?type=${type}`;
+
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Basic ${authToken}` }
+      });
+
+      if (!res.ok) {
+        alert('Failed to download logs');
+        return;
+      }
+
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${type}-${currentService}.log`;
+      a.click();
+    }
+
+    // Check if already authenticated
+    const saved = sessionStorage.getItem('log_token');
+    if (saved) {
+      authToken = saved;
+      fetch(`${GATEWAY}/gateway/logs?lines=1&type=combined`, {
+        headers: { 'Authorization': `Basic ${saved}` }
+      }).then(res => {
+        if (res.ok) {
+          document.getElementById('loginScreen').classList.add('hidden');
+          document.getElementById('logsScreen').classList.remove('hidden');
+          loadLogs();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
