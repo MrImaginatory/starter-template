@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vike dev",
+    "build": "vike build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vike preview"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.20",
@@ -33,7 +33,9 @@
     "react-dom": "^19.2.8",
     "react-dropzone": "^20.1.1",
     "tailwind-merge": "^3.6.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "vike": "^0.4.264",
+    "vike-react": "^0.6.26"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

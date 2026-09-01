@@ -19,7 +19,7 @@ responsive and maintainable as it grows.
 | Concern    | Choice                                        |
 | ---------- | --------------------------------------------- |
 | Framework  | React 19 + TypeScript (strict, `verbatimModuleSyntax`) |
-| Build      | Vite                                          |
+| Build      | Vite + Vike (SSG pre-rendering)               |
 | Styling    | Tailwind CSS v4 (CSS-first config in `src/index.css`) |
 | Primitives | Radix UI (dialog, dropdown-menu, popover, tabs, switch, checkbox, radio-group, tooltip, select, accordion) |
 | Rich Text  | Tiptap (headless, ProseMirror-based) — `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder` |
@@ -33,28 +33,38 @@ Do not add another styling system, UI kit or icon library without replacing this
 ## 2. Project structure
 
 ```
-src/
-├── components/
-│   ├── ui/            # Reusable, app-agnostic primitives (Button, Input, …)
-│   │   ├── index.ts   # Barrel export — the public API of the design system
-│   │   └── *.tsx      # One component per file
-│   ├── theme/         # Theme provider, toggle, mode switch
-│   └── settings/      # Settings panel, provider, context (Sheet-based)
-├── lib/               # Pure utilities & helpers (no React UI): cn(), format(), i18n(), string()…
-├── hooks/             # Shared React hooks (use* files)
-├── pages/             # Route-level pages composed ONLY from ui primitives
-│   └── showcase/      # The design-system reference page
-├── App.tsx            # App shell: providers + layout
-├── index.css          # Design tokens (single source of truth)
-└── main.tsx
+├── pages/             # Vike page routes (SSG pre-rendering)
+│   ├── +config.ts     # Vike global config
+│   ├── +onBeforePrerenderStart.ts
+│   ├── +onRenderHtml.tsx
+│   ├── +onRenderClient.tsx
+│   └── +Page.tsx      # Main page entry
+├── src/
+│   ├── components/
+│   │   ├── ui/            # Reusable, app-agnostic primitives (Button, Input, …)
+│   │   │   ├── index.ts   # Barrel export — the public API of the design system
+│   │   │   └── *.tsx      # One component per file
+│   │   ├── theme/         # Theme provider, toggle, mode switch
+│   │   ├── settings/      # Settings panel, provider, context (Sheet-based)
+│   │   └── seo/           # SEO components (structured data schemas)
+│   ├── lib/               # Pure utilities & helpers (no React UI): cn(), format(), i18n(), string()…
+│   ├── hooks/             # Shared React hooks (use* files)
+│   ├── pages/             # Route-level pages composed ONLY from ui primitives
+│   │   └── showcase/      # The design-system reference page
+│   ├── App.tsx            # App shell: providers + layout
+│   ├── index.css          # Design tokens (single source of truth)
+│   └── main.tsx
+├── public/            # Static assets (robots.txt, sitemap.xml, images)
+└── vite.config.ts     # Vite + Vike config
 ```
 
 **Where things go**
 
 - New primitive → `components/ui/<name>.tsx` + barrel export + showcase entry.
 - New shared logic → `lib/` (pure) or `hooks/` (stateful).
-- New screen → `pages/<name>/<name>-page.tsx`, composed from `ui/`.
+- New screen → `pages/<name>/+Page.tsx`, composed from `ui/`.
 - Anything used by ≥ 2 pages must live outside the pages.
+- SEO schemas → `components/seo/`.
 
 ## 3. Naming conventions
 
@@ -215,6 +225,62 @@ A reusable component is "done" only when it has: full prop typing ✔ both theme
 - Performance: don't memoize prematurely; virtualize lists > 200 rows later, not now.
 - i18n-ready: user-facing strings go through `translate()` / `useTranslation()` from `lib/i18n.ts` with `{{param}}` interpolation; dates/numbers/currency always via Intl helpers in `lib/format.ts` (which use `getLocale()`).
 
+## 18. SEO & Pre-rendering
+
+This project uses **Vike SSG** (Static Site Generation) for pre-rendering HTML at build time. All pages are pre-rendered and deployable to static hosts.
+
+### Page Structure
+
+```
+pages/
+├── +config.ts                    # Vike global config (prerender: true)
+├── +onBeforePrerenderStart.ts    # URL list for pre-rendering
+├── +onRenderHtml.tsx             # Server-side HTML rendering
+├── +onRenderClient.tsx           # Client-side hydration
+├── +Head.tsx                     # Per-page meta tags (optional)
+└── +Page.tsx                     # Page component (renders App)
+```
+
+### Adding a New Page
+
+1. Create `pages/<route>/+Page.tsx` with the page component
+2. Create `pages/<route>/+config.ts` with route config
+3. Add the route to `pages/+onBeforePrerenderStart.ts` for pre-rendering
+4. Update `public/sitemap.xml` with the new URL
+
+### SEO Meta Tags
+
+Every page **must** have:
+- `<title>` — 50-60 characters, unique per page
+- `<meta name="description">` — 150-160 characters, unique per page
+- `<link rel="canonical">` — full URL
+- Open Graph tags (`og:title`, `og:description`, `og:image`, `og:url`)
+- Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`)
+
+Meta tags are set in `+onRenderHtml.tsx` (for static values) or via `+Head.tsx` (for dynamic per-page values).
+
+### Structured Data (JSON-LD)
+
+Use JSON-LD for rich snippets. Current schemas:
+- `src/components/seo/organization-schema.ts` — Organization/SoftwareSourceCode schema
+
+When adding new content types (products, articles, FAQs), create a new schema file in `src/components/seo/`.
+
+### Static Files
+
+- `public/robots.txt` — Allow all crawlers, reference sitemap
+- `public/sitemap.xml` — All pre-rendered URLs
+- `public/og-default.png` — Default social share image (1200×630px)
+
+### Build & Verify
+
+```bash
+pnpm build          # Pre-render HTML to dist/client/
+pnpm preview        # Serve pre-rendered site locally
+```
+
+Verify: view page source in browser — all content must be in initial HTML (no empty `<div id="root">`).
+
 ---
 
 ## Definition of done (any UI task)
@@ -226,3 +292,4 @@ A reusable component is "done" only when it has: full prop typing ✔ both theme
 - [ ] Accessible: labels, focus order, keyboard, live regions, contrast
 - [ ] `pnpm lint` + `pnpm build` clean
 - [ ] Showcase page updated if anything about the system changed
+- [ ] SEO: unique `<title>`, `<meta description>`, canonical URL, OG tags present
