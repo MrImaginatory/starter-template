@@ -4,8 +4,9 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getLocale, useTranslation } from '@/lib/i18n'
-import { formatDate, isSameDay, toISODate } from '@/lib/format'
+import { formatDate, formatDateTime, isSameDay, toISODate } from '@/lib/format'
 import { Button } from './button'
+import { TimeColumns } from './time-columns'
 import { mergeAriaDescribedBy, useField } from './field-context'
 
 export interface DatePickerProps
@@ -15,6 +16,12 @@ export interface DatePickerProps
   minDate?: Date
   maxDate?: Date
   isDateDisabled?: (date: Date) => boolean
+  /** Show time columns below the calendar (date + time picker). */
+  showTime?: boolean
+  /** Render 12-hour time with an AM/PM column (default `true`). */
+  hour12?: boolean
+  /** Minute step, 1–59 (default `1`). */
+  minuteInterval?: number
   placeholder?: string
   invalid?: boolean
 }
@@ -47,6 +54,9 @@ export function DatePicker({
   minDate,
   maxDate,
   isDateDisabled,
+  showTime = false,
+  hour12 = true,
+  minuteInterval = 1,
   placeholder = 'Pick a date',
   invalid: invalidProp,
   className,
@@ -107,7 +117,9 @@ export function DatePicker({
         )}
         {...props}
       >
-        <span>{value ? formatDate(value) : placeholder}</span>
+        <span>
+          {value ? (showTime ? formatDateTime(value, locale) : formatDate(value)) : placeholder}
+        </span>
         <CalendarIcon aria-hidden="true" className="size-4 shrink-0 text-fg-subtle" />
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
@@ -116,79 +128,103 @@ export function DatePicker({
           sideOffset={6}
           className="z-50 w-auto origin-(--radix-popover-content-transform-origin) rounded-xl border border-border bg-surface p-3 shadow-lg outline-none data-[state=open]:animate-zoom-in data-[state=closed]:animate-fade-out"
         >
-          <div className="mb-2 flex items-center justify-between">
-            <button
-              type="button"
-              aria-label={t('datePicker.previousMonth')}
-              disabled={prevDisabled}
-              onClick={() =>
-                setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))
-              }
-              className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-fill-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronLeft className="size-4" aria-hidden="true" />
-            </button>
-            <span className="text-sm font-semibold text-fg" aria-live="polite">
-              {formatDate(viewMonth, locale, { month: 'long', year: 'numeric' })}
-            </span>
-            <button
-              type="button"
-              aria-label={t('datePicker.nextMonth')}
-              disabled={nextDisabled}
-              onClick={() =>
-                setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))
-              }
-              className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-fill-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronRight className="size-4" aria-hidden="true" />
-            </button>
-          </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+              <div className="shrink-0">
+                <div className="mb-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    aria-label={t('datePicker.previousMonth')}
+                    disabled={prevDisabled}
+                    onClick={() =>
+                      setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))
+                    }
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-fill-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+                  <span className="text-sm font-semibold text-fg" aria-live="polite">
+                    {formatDate(viewMonth, locale, { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={t('datePicker.nextMonth')}
+                    disabled={nextDisabled}
+                    onClick={() =>
+                      setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))
+                    }
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-fg-muted outline-none transition-colors hover:bg-fill-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
 
-          <div role="group" aria-label={t('datePicker.calendar')} className="grid w-64 grid-cols-7 gap-y-0.5">
-            {weekdayLabels.map((label, index) => (
-              <span
-                key={`${label}-${index}`}
-                aria-hidden="true"
-                className="grid size-8 place-items-center text-xs font-medium text-fg-subtle"
-              >
-                {label}
-              </span>
-            ))}
-            {cells.map(({ date, outside }) => {
-              const selected = value ? isSameDay(date, value) : false
-              const isToday = isSameDay(date, today)
-              const cellDisabled = outside || isDisabled(date)
-              return (
-                <button
-                  key={toISODate(date)}
-                  type="button"
-                  disabled={cellDisabled}
-                  aria-label={formatDate(date, locale, { dateStyle: 'full' })}
-                  onClick={() => {
-                    if (!outside) onChange(date)
-                  }}
-                  className={cn(
-                    'grid size-8 place-items-center rounded-md text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 [&:not(:disabled)]:cursor-pointer',
-                    outside ? 'text-fg-subtle opacity-40' : 'text-fg',
-                    !cellDisabled && !selected && 'hover:bg-fill-hover',
-                    isToday && !selected && 'font-semibold text-primary-text ring-1 ring-primary/40 ring-inset',
-                    selected && 'bg-primary font-semibold text-primary-fg shadow-xs',
-                    cellDisabled && 'cursor-default opacity-30 hover:bg-transparent',
-                  )}
-                >
-                  {date.getDate()}
-                </button>
-              )
-            })}
-          </div>
+                <div role="group" aria-label={t('datePicker.calendar')} className="grid w-64 grid-cols-7 gap-y-0.5">
+                  {weekdayLabels.map((label, index) => (
+                    <span
+                      key={`${label}-${index}`}
+                      aria-hidden="true"
+                      className="grid size-8 place-items-center text-xs font-medium text-fg-subtle"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  {cells.map(({ date, outside }) => {
+                    const selected = value ? isSameDay(date, value) : false
+                    const isToday = isSameDay(date, today)
+                    const cellDisabled = outside || isDisabled(date)
+                    return (
+                      <button
+                        key={toISODate(date)}
+                        type="button"
+                        disabled={cellDisabled}
+                        aria-label={formatDate(date, locale, { dateStyle: 'full' })}
+                        onClick={() => {
+                          if (outside) return
+                          if (showTime && value) {
+                            const next = new Date(date)
+                            next.setHours(value.getHours(), value.getMinutes(), 0, 0)
+                            onChange(next)
+                          } else {
+                            onChange(date)
+                          }
+                        }}
+                        className={cn(
+                          'grid size-8 place-items-center rounded-md text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 [&:not(:disabled)]:cursor-pointer',
+                          outside ? 'text-fg-subtle opacity-40' : 'text-fg',
+                          !cellDisabled && !selected && 'hover:bg-fill-hover',
+                          isToday && !selected && 'font-semibold text-primary-text ring-1 ring-primary/40 ring-inset',
+                          selected && 'bg-primary font-semibold text-primary-fg shadow-xs',
+                          cellDisabled && 'cursor-default opacity-30 hover:bg-transparent',
+                        )}
+                      >
+                        {date.getDate()}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <Button variant="ghost" size="xs" onClick={() => { onChange(today); setOpen(false) }}>
-              {t('common.today')}
-            </Button>
-            <Button variant="ghost" size="xs" onClick={() => { onChange(null); setOpen(false) }}>
-              {t('common.clear')}
-            </Button>
+              {showTime && (
+                <div className="flex items-center border-t border-border pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
+                  <TimeColumns
+                    value={value}
+                    onChange={onChange}
+                    hour12={hour12}
+                    minuteInterval={minuteInterval}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <Button variant="ghost" size="xs" onClick={() => { onChange(today); setOpen(false) }}>
+                {t('common.today')}
+              </Button>
+              <Button variant="ghost" size="xs" onClick={() => { onChange(null); setOpen(false) }}>
+                {t('common.clear')}
+              </Button>
+            </div>
           </div>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>

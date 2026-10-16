@@ -28,6 +28,13 @@ const dictionaries: Record<Locale, Dictionary> = {
     'datePicker.nextMonth': 'Next month',
     'datePicker.calendar': 'Calendar',
 
+    'timePicker.hour': 'Hour',
+    'timePicker.minute': 'Minute',
+    'timePicker.period': 'AM or PM',
+    'timePicker.now': 'Now',
+    'timePicker.increase': 'Increase {{label}}',
+    'timePicker.decrease': 'Decrease {{label}}',
+
     'select.noResults': 'No results found',
 
     'multiSelect.placeholder': 'Select options…',

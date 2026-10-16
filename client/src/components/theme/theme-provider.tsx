@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { THEME_STORAGE_KEY } from '@/lib/utils'
 import {
   ThemeContext,
@@ -30,21 +30,46 @@ function subscribeToSystemTheme(onChange: (theme: ResolvedTheme) => void) {
   return () => media.removeEventListener('change', handler)
 }
 
+// localStorage is the source of truth for the theme mode; listeners re-read it
+// after writes (and after cross-tab `storage` events).
+const modeListeners = new Set<() => void>()
+
+function subscribeMode(onChange: () => void) {
+  modeListeners.add(onChange)
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY) onChange()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    modeListeners.delete(onChange)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+function emitModeChange() {
+  modeListeners.forEach((listener) => listener())
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>(getStoredMode)
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme)
-
-  useEffect(() => subscribeToSystemTheme(setSystemTheme), [])
-
-  const resolvedTheme = mode === 'system' ? systemTheme : mode
+  // useSyncExternalStore serves the server snapshot during hydration and the
+  // client snapshot afterwards — no markup mismatch, no setState-in-effect.
+  const mode = useSyncExternalStore<ThemeMode>(subscribeMode, getStoredMode, () => 'system')
+  const systemTheme = useSyncExternalStore<ResolvedTheme>(
+    subscribeToSystemTheme,
+    getSystemTheme,
+    () => 'light',
+  )
 
   useEffect(() => {
-    applyTheme(resolvedTheme)
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
-  }, [mode, resolvedTheme])
+    applyTheme(mode === 'system' ? systemTheme : mode)
+  }, [mode, systemTheme])
 
-  const setMode = useCallback((next: ThemeMode) => setModeState(next), [])
+  const setMode = useCallback((next: ThemeMode) => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, next)
+    emitModeChange()
+  }, [])
 
+  const resolvedTheme = mode === 'system' ? systemTheme : mode
   const value: ThemeContextValue = { mode, resolvedTheme, setMode }
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

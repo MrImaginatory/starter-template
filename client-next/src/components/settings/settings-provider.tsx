@@ -1,19 +1,24 @@
 'use client'
-
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
   applySettings,
   clearSettingsStorage,
   DEFAULT_SETTINGS,
-  loadSettings,
+  getSettingsSnapshot,
   saveSettings,
+  subscribeSettings,
   type AppSettings,
   type CustomFont,
 } from '@/lib/settings'
 import { SettingsContext, type SettingsContextValue } from './settings-context'
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(loadSettings)
+  // Server snapshot = defaults, client snapshot = localStorage — hydration-safe.
+  const settings = useSyncExternalStore<AppSettings>(
+    subscribeSettings,
+    getSettingsSnapshot,
+    () => DEFAULT_SETTINGS,
+  )
   const [panelOpen, setPanelOpen] = useState(false)
 
   useEffect(() => {
@@ -21,11 +26,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [settings])
 
   const update = useCallback((patch: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch }
-      saveSettings(next)
-      return next
-    })
+    saveSettings({ ...getSettingsSnapshot(), ...patch })
   }, [])
 
   const setPrimaryColor = useCallback((color: string | null) => update({ primaryColor: color }), [update])
@@ -35,7 +36,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const resetSettings = useCallback(() => {
     clearSettingsStorage()
-    setSettings({ ...DEFAULT_SETTINGS })
   }, [])
 
   const value: SettingsContextValue = {

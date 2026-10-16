@@ -53,6 +53,15 @@ export function formatDateTime(date: Date | string, locale: string = getLocale()
   return formatDate(date, locale, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+export function formatTime(date: Date | string, locale: string = getLocale(), hour12 = true) {
+  const value = typeof date === 'string' ? new Date(date) : date
+  return new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12,
+  }).format(value)
+}
+
 export function toISODate(date: Date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

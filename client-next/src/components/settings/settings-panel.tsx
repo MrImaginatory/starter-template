@@ -70,6 +70,13 @@ export function SettingsPanel() {
   }
 
   const activeFontSize = FONT_SIZE_STEPS[settings.fontScale] ?? FONT_SIZE_STEPS[2]
+  // The custom swatch shows the rainbow icon until a custom (non-preset) color
+  // is picked — then it shows that color. Both must use the same condition,
+  // otherwise presets hide the icon without painting a background (empty circle).
+  const customColor =
+    settings.primaryColor && !BRAND_PRESETS.some((p) => p.value === settings.primaryColor)
+      ? settings.primaryColor
+      : null
 
   return (
     <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
@@ -123,17 +130,11 @@ export function SettingsPanel() {
                 title="Custom color"
                 className={cn(
                   'relative grid size-9 cursor-pointer place-items-center overflow-hidden rounded-full border border-border transition-transform hover:scale-105 focus-within:ring-2 focus-within:ring-ring/60 focus-within:ring-offset-2 focus-within:ring-offset-background',
-                  settings.primaryColor && !BRAND_PRESETS.some((p) => p.value === settings.primaryColor)
-                    ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-                    : '',
+                  customColor && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                 )}
-                style={
-                  settings.primaryColor && !BRAND_PRESETS.some((p) => p.value === settings.primaryColor)
-                    ? { backgroundColor: settings.primaryColor }
-                    : undefined
-                }
+                style={customColor ? { backgroundColor: customColor } : undefined}
               >
-                {!settings.primaryColor && (
+                {!customColor && (
                   <span
                     aria-hidden="true"
                     className="size-5 rounded-full"

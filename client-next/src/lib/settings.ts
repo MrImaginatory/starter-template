@@ -78,6 +78,7 @@ export function saveSettings(settings: AppSettings) {
   } catch {
     /* storage full or unavailable */
   }
+  emitSettingsChange()
 }
 
 export function clearSettingsStorage() {
@@ -86,6 +87,41 @@ export function clearSettingsStorage() {
   } catch {
     /* ignore */
   }
+  emitSettingsChange()
+}
+
+// --- External-store access (hydration-safe: server snapshot = defaults) ---
+
+const settingsListeners = new Set<() => void>()
+
+function emitSettingsChange() {
+  settingsListeners.forEach((listener) => listener())
+}
+
+export function subscribeSettings(onChange: () => void): () => void {
+  settingsListeners.add(onChange)
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === SETTINGS_STORAGE_KEY) onChange()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    settingsListeners.delete(onChange)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+let cachedRaw: string | null | undefined
+let cachedSettings: AppSettings = { ...DEFAULT_SETTINGS }
+
+/** Cached so `useSyncExternalStore` sees a stable reference between reads. */
+export function getSettingsSnapshot(): AppSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS
+  const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
+  if (raw !== cachedRaw) {
+    cachedRaw = raw
+    cachedSettings = loadSettings()
+  }
+  return cachedSettings
 }
 
 export function applyFontSize(scale: number) {

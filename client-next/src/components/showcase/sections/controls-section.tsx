@@ -7,11 +7,14 @@ import {
   RadioGroup,
   Slider,
   Switch,
+  TimePicker,
 } from '@/components/ui'
 import { Demo, ShowcaseSection } from '../shared'
 
 export function ControlsSection() {
   const [date, setDate] = useState<Date | null>(null)
+  const [dateTime, setDateTime] = useState<Date | null>(null)
+  const [time, setTime] = useState<Date | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [tristate, setTristate] = useState<boolean | 'indeterminate'>('indeterminate')
   const [sliderValue, setSliderValue] = useState(65)
@@ -107,9 +110,38 @@ export function ControlsSection() {
           <Field id="dp-min" label="Issue date (min: today)">
             <DatePicker value={date ?? null} onChange={setDate} minDate={new Date()} placeholder="Today or later" />
           </Field>
+          <Field id="dp-when" label="Meeting (date + time)" hint="`showTime` toggles the time columns.">
+            <DatePicker value={dateTime} onChange={setDateTime} showTime placeholder="Pick date and time" />
+          </Field>
         </div>
         <p className="text-sm text-fg-muted">
           Selected: <code className="font-mono text-fg">{date ? date.toDateString() : 'none'}</code>
+        </p>
+        <p className="text-sm text-fg-muted">
+          Date + time:{' '}
+          <code className="font-mono text-fg">
+            {dateTime ? dateTime.toLocaleString() : 'none'}
+          </code>
+        </p>
+      </Demo>
+
+      <Demo title="Time picker" layout="stack">
+        <div className="grid max-w-md gap-4 sm:grid-cols-2">
+          <Field id="tp-start" label="Start time" hint="12-hour format (default).">
+            <TimePicker value={time} onChange={setTime} />
+          </Field>
+          <Field id="tp-24h" label="Start time (24-hour, 15-min steps)">
+            <TimePicker
+              value={time}
+              onChange={setTime}
+              hour12={false}
+              minuteInterval={15}
+              placeholder="Pick a time"
+            />
+          </Field>
+        </div>
+        <p className="text-sm text-fg-muted">
+          Selected: <code className="font-mono text-fg">{time ? time.toLocaleTimeString() : 'none'}</code>
         </p>
       </Demo>
     </ShowcaseSection>

@@ -73,6 +73,8 @@ export {
 } from './breadcrumb'
 export { Pagination, type PaginationProps } from './pagination'
 export { DatePicker, type DatePickerProps } from './date-picker'
+export { TimePicker, type TimePickerProps } from './time-picker'
+export { TimeColumns, type TimeColumnsProps } from './time-columns'
 export { Spinner, type SpinnerProps } from './spinner'
 export { Skeleton } from './skeleton'
 export { Progress, type ProgressProps } from './progress'
